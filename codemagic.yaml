@@ -1,0 +1,74 @@
+# Codemagic CI — iOS builds that need no Apple Developer account.
+#
+# Both workflows run manually from the Codemagic UI (no triggers) to save the
+# free-tier macOS minutes. Optional env vars CRM_ENDPOINT / CRM_TOKEN /
+# CRM_OWNER override the API defaults in lib/core/api/crm_session.dart.
+#
+# - ios-simulator: Runner.app for the iOS Simulator, zipped. Upload it to
+#   Appetize.io to share a link where the client uses the app in a browser.
+# - ios-unsigned-ipa: unsigned device .ipa. It can only be installed after
+#   signing it (e.g. Sideloadly with a free Apple ID, valid 7 days) or, later,
+#   with a paid account via TestFlight.
+
+definitions:
+  environment: &environment
+    flutter: stable
+    xcode: latest
+  scripts:
+    - &get_packages
+      name: Get packages
+      script: flutter pub get
+    - &analyze
+      name: Analyze
+      script: flutter analyze
+    - &test
+      name: Tests
+      script: flutter test
+
+workflows:
+  ios-simulator:
+    name: iOS Simulator (Appetize)
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    environment: *environment
+    scripts:
+      - *get_packages
+      - *analyze
+      - *test
+      - name: Build for iOS Simulator
+        script: |
+          flutter build ios --simulator --debug \
+            --build-number=$BUILD_NUMBER \
+            ${CRM_ENDPOINT:+--dart-define=CRM_ENDPOINT=$CRM_ENDPOINT} \
+            ${CRM_TOKEN:+--dart-define=CRM_TOKEN=$CRM_TOKEN} \
+            ${CRM_OWNER:+--dart-define=CRM_OWNER=$CRM_OWNER}
+      - name: Zip Runner.app
+        script: |
+          cd build/ios/iphonesimulator
+          zip -qr "$CM_BUILD_DIR/FutureCRM-simulator.zip" Runner.app
+    artifacts:
+      - FutureCRM-simulator.zip
+
+  ios-unsigned-ipa:
+    name: iOS unsigned IPA
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    environment: *environment
+    scripts:
+      - *get_packages
+      - *analyze
+      - *test
+      - name: Build unsigned release
+        script: |
+          flutter build ios --release --no-codesign \
+            --build-number=$BUILD_NUMBER \
+            ${CRM_ENDPOINT:+--dart-define=CRM_ENDPOINT=$CRM_ENDPOINT} \
+            ${CRM_TOKEN:+--dart-define=CRM_TOKEN=$CRM_TOKEN} \
+            ${CRM_OWNER:+--dart-define=CRM_OWNER=$CRM_OWNER}
+      - name: Package .ipa
+        script: |
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qr "$CM_BUILD_DIR/FutureCRM-unsigned.ipa" Payload
+    artifacts:
+      - FutureCRM-unsigned.ipa
