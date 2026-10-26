@@ -3,6 +3,8 @@
 # Both workflows run manually from the Codemagic UI (no triggers) to save the
 # free-tier macOS minutes. Optional env vars CRM_ENDPOINT / CRM_TOKEN /
 # CRM_OWNER override the API defaults in lib/core/api/crm_session.dart.
+# Anything passed with --dart-define is readable from the shipped app, so
+# CRM_TOKEN must only ever be a revocable test/demo token, never a real one.
 #
 # - ios-simulator: Runner.app for the iOS Simulator, zipped. Upload it to
 #   Appetize.io to share a link where the client uses the app in a browser.
