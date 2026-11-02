@@ -3,37 +3,41 @@ import 'package:flutter/foundation.dart';
 import '../../core/api/crm_client.dart';
 import 'account.dart';
 import 'account_api.dart';
+import 'auth_api.dart';
 
 /// Sesión de la app.
 ///
-/// El login es **ficticio** mientras el API no documente `login`: acepta
-/// cualquier correo válido con una contraseña de 3 o más caracteres y usa el
-/// token configurado en `CrmSession`. Cuando exista el endpoint, solo cambia
-/// [signIn].
+/// [signIn] llama a `acceso` y guarda el token en [client], el cliente que
+/// comparten todas las peticiones del CRM. El token vive solo en memoria:
+/// al cerrar la app hay que volver a entrar.
 class SessionStore extends ChangeNotifier {
   SessionStore({
+    CrmClient? client,
     AccountApi? api,
-    this.signInDelay = const Duration(milliseconds: 1100),
+    AuthApi? auth,
+    AccountProfile? profile,
+  }) : this._withClient(client ?? CrmClient(), api, auth, profile);
+
+  SessionStore._withClient(
+    this.client,
+    AccountApi? api,
+    AuthApi? auth,
     this._profile,
-    this._demo = false,
-  }) : _api = api ?? HttpAccountApi();
+  ) : _api = api ?? HttpAccountApi(client: client),
+      _auth = auth ?? HttpAuthApi(client: client);
 
   static const int minPasswordLength = 3;
 
-  final AccountApi _api;
+  /// Cliente autenticado con el token de la sesión.
+  final CrmClient client;
 
-  /// Espera simulada del login, para que se vea el estado de carga.
-  final Duration signInDelay;
+  final AccountApi _api;
+  final AuthApi _auth;
 
   AccountProfile? _profile;
   bool _busy = false;
-  bool _demo;
 
   AccountProfile? get profile => _profile;
-
-  /// Sesión del login ficticio: comparte el token de pruebas, así que no se
-  /// debe borrar la cuenta desde ella.
-  bool get demo => _demo;
   bool get signedIn => _profile != null;
   bool get busy => _busy;
 
@@ -45,18 +49,16 @@ class SessionStore extends ChangeNotifier {
     if (password.length < minPasswordLength) {
       return 'La contraseña debe tener al menos $minPasswordLength caracteres.';
     }
-    _busy = true;
-    notifyListeners();
-    await Future<void>.delayed(signInDelay);
-    _busy = false;
-    _profile = AccountProfile.fromEmail(email.trim().toLowerCase());
-    _demo = true;
-    notifyListeners();
-    return null;
+    final normalized = email.trim().toLowerCase();
+    return _run(() async {
+      client.token = await _auth.signIn(normalized, password);
+      _profile = AccountProfile.fromEmail(normalized);
+    });
   }
 
   void signOut() {
     if (_profile == null) return;
+    client.token = null;
     _profile = null;
     notifyListeners();
   }
@@ -71,14 +73,9 @@ class SessionStore extends ChangeNotifier {
 
   /// Borra la cuenta con `eliminar_cuenta` y cierra la sesión.
   Future<String?> deleteAccount() {
-    if (_demo) {
-      return Future.value(
-        'No disponible en la sesión de demostración: borraría la cuenta '
-        'de pruebas compartida.',
-      );
-    }
     return _run(() async {
       await _api.delete();
+      client.token = null;
       _profile = null;
     });
   }

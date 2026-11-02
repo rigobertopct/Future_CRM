@@ -58,6 +58,7 @@ void main() {
         opportunitiesApi: MemoryOpportunitiesApi(),
         session: signedInSession(),
         initialSection: CrmSection.leads,
+        borderLight: false,
       ),
     );
     await tester.pumpAndSettle();
@@ -89,6 +90,7 @@ void main() {
         opportunitiesApi: MemoryOpportunitiesApi(),
         session: signedInSession(),
         initialSection: CrmSection.leads,
+        borderLight: false,
       ),
     );
     await tester.pumpAndSettle();
@@ -134,6 +136,7 @@ void main() {
         opportunitiesApi: MemoryOpportunitiesApi(),
         session: signedInSession(),
         initialSection: CrmSection.leads,
+        borderLight: false,
       ),
     );
     await tester.pumpAndSettle();

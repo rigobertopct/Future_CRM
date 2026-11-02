@@ -22,10 +22,10 @@ flutter pub get
 flutter run
 ```
 
-La sesión de desarrollo viene por defecto; para usar otra:
+Se entra con un usuario del API (pantalla de login, petición `acceso`). Para usar otro servidor o propietario:
 
 ```bash
-flutter run --dart-define=CRM_TOKEN=... --dart-define=CRM_OWNER=... --dart-define=CRM_ENDPOINT=...
+flutter run --dart-define=CRM_OWNER=... --dart-define=CRM_ENDPOINT=...
 ```
 
 ## Calidad

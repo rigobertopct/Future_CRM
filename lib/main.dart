@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'animations/border_light.dart';
 import 'app/crm_controller.dart';
 import 'core/theme/app_motion.dart';
 import 'core/theme/app_theme.dart';
@@ -20,6 +21,7 @@ class MyApp extends StatefulWidget {
     this.opportunitiesApi,
     this.session,
     this.initialSection = CrmSection.dashboard,
+    this.borderLight = true,
   });
 
   final LeadsApi? leadsApi;
@@ -28,6 +30,10 @@ class MyApp extends StatefulWidget {
   /// Sesión inicial. Sin ella la app abre en el login.
   final SessionStore? session;
   final CrmSection initialSection;
+
+  /// Destello en el borde de las tarjetas. Los tests lo apagan porque es una
+  /// animación sin fin.
+  final bool borderLight;
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -99,7 +105,7 @@ class _MyAppState extends State<MyApp> {
       },
       child: CrmScope(
         controller: _crm,
-        child: _AuthGate(crm: _crm),
+        child: _AuthGate(crm: _crm, borderLight: widget.borderLight),
       ),
     );
   }
@@ -108,9 +114,10 @@ class _MyAppState extends State<MyApp> {
 /// Muestra el login o la app. Al entrar, el login "atraviesa" la pantalla
 /// (crece y se desvanece) mientras la app aparece detrás.
 class _AuthGate extends StatelessWidget {
-  const _AuthGate({required this.crm});
+  const _AuthGate({required this.crm, required this.borderLight});
 
   final CrmController crm;
+  final bool borderLight;
 
   static const _loginKey = ValueKey('auth-login');
   static const _appKey = ValueKey('auth-app');
@@ -133,7 +140,13 @@ class _AuthGate extends StatelessWidget {
               Stack(fit: StackFit.expand, children: [...previous, ?current]),
           transitionBuilder: _transition,
           child: signedIn
-              ? const KeyedSubtree(key: _appKey, child: CrmShell())
+              ? KeyedSubtree(
+                  key: _appKey,
+                  child: BorderLightScope(
+                    enabled: borderLight,
+                    child: const CrmShell(),
+                  ),
+                )
               : LoginPage(key: _loginKey, session: crm.session),
         );
       },

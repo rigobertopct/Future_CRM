@@ -6,9 +6,8 @@ import 'lead.dart';
 import 'leads_api.dart';
 
 class LeadsStore extends ChangeNotifier {
-  LeadsStore({LeadsApi? api, String? owner})
-    : _api = api ?? HttpLeadsApi(),
-      owner = owner ?? CrmSession.owner;
+  LeadsStore({required this._api, String? owner})
+    : owner = owner ?? CrmSession.owner;
 
   static const int pageSize = 10;
 

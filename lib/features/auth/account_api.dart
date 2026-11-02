@@ -9,7 +9,7 @@ abstract class AccountApi {
 }
 
 class HttpAccountApi implements AccountApi {
-  HttpAccountApi({CrmClient? client}) : _client = client ?? CrmClient();
+  HttpAccountApi({required this._client});
 
   final CrmClient _client;
 

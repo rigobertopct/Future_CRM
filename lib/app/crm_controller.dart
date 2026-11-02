@@ -54,12 +54,32 @@ class CrmController extends ChangeNotifier {
     LeadsApi? leadsApi,
     OpportunitiesApi? opportunitiesApi,
     SessionStore? session,
-    this.section = CrmSection.dashboard,
+    CrmSection section = CrmSection.dashboard,
     SettingsStore? settingsStore,
     DashboardStore? dashboardStore,
-  }) : leads = LeadsStore(api: leadsApi),
-       opportunities = OpportunitiesStore(api: opportunitiesApi),
-       session = session ?? SessionStore(),
+  }) : this._withSession(
+         session ?? SessionStore(),
+         leadsApi: leadsApi,
+         opportunitiesApi: opportunitiesApi,
+         section: section,
+         settingsStore: settingsStore,
+         dashboardStore: dashboardStore,
+       );
+
+  /// Las APIs por defecto usan el cliente de [session], que lleva su token.
+  CrmController._withSession(
+    this.session, {
+    LeadsApi? leadsApi,
+    OpportunitiesApi? opportunitiesApi,
+    required this.section,
+    SettingsStore? settingsStore,
+    DashboardStore? dashboardStore,
+  }) : leads = LeadsStore(
+         api: leadsApi ?? HttpLeadsApi(client: session.client),
+       ),
+       opportunities = OpportunitiesStore(
+         api: opportunitiesApi ?? HttpOpportunitiesApi(client: session.client),
+       ),
        settings = settingsStore ?? SettingsStore() {
     dashboard = dashboardStore ?? DashboardStore(settings: settings);
     leads.addListener(notifyListeners);

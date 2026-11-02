@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../animations/border_light.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_effects.dart';
 import '../../core/theme/app_motion.dart';
 
 /// Tarjeta base: superficie con borde fino, línea de acento opcional y, si
-/// tiene [onTap], respuesta táctil con brillo en el borde.
+/// tiene [onTap], respuesta táctil con brillo en el borde. Dentro de un
+/// [BorderLightScope] activo, un destello recorre el borde.
 class SurfaceCard extends StatefulWidget {
   const SurfaceCard({
     super.key,
@@ -33,6 +35,9 @@ class SurfaceCard extends StatefulWidget {
 class _SurfaceCardState extends State<SurfaceCard> {
   static const double _radius = 14;
   bool _pressed = false;
+
+  /// Desfase estable por tarjeta para que los destellos no vayan sincronizados.
+  late final double _phase = (identityHashCode(this) % 997) / 997;
 
   void _setPressed(bool value) {
     if (_pressed == value || widget.onTap == null) return;
@@ -103,7 +108,7 @@ class _SurfaceCardState extends State<SurfaceCard> {
         scale: _pressed ? 0.985 : 1,
         duration: duration,
         curve: AppMotion.out,
-        child: card,
+        child: BorderLight(radius: _radius, phase: _phase, child: card),
       ),
     );
   }

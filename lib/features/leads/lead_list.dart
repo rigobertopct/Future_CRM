@@ -170,69 +170,76 @@ class LeadCards extends StatelessWidget {
         return FadeInWidget(
           delay: _staggerDelay(index),
           begin: const Offset(0, 0.08),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppTheme.radius),
-              border: Border.all(color: palette.border),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(AppTheme.radius - 1),
-              child: Stack(
-                children: [
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: 3,
-                    child: ColoredBox(
-                      color: stageColor(context, lead.stageValue),
+          child: BorderLight(
+            radius: AppTheme.radius,
+            phase: (index * 0.137) % 1,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppTheme.radius),
+                border: Border.all(color: palette.border),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(AppTheme.radius - 1),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: 3,
+                      child: ColoredBox(
+                        color: stageColor(context, lead.stageValue),
+                      ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(17, 14, 14, 14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(child: _Identity(lead: lead)),
-                            _Actions(lead: lead, store: store),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        _MetaLine(label: 'Empresa', value: lead.displayCompany),
-                        _MetaLine(
-                          label: 'Email',
-                          value: lead.email,
-                          mono: true,
-                        ),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            InterestBadge(interest: lead.interestValue),
-                            StageBadge(
-                              stage: lead.stageValue,
-                              onSelected: (stage) => reportLeadResult(
-                                context,
-                                store.changeStage(lead.id, stage),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(17, 14, 14, 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(child: _Identity(lead: lead)),
+                              _Actions(lead: lead, store: store),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          _MetaLine(
+                            label: 'Empresa',
+                            value: lead.displayCompany,
+                          ),
+                          _MetaLine(
+                            label: 'Email',
+                            value: lead.email,
+                            mono: true,
+                          ),
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              InterestBadge(interest: lead.interestValue),
+                              StageBadge(
+                                stage: lead.stageValue,
+                                onSelected: (stage) => reportLeadResult(
+                                  context,
+                                  store.changeStage(lead.id, stage),
+                                ),
                               ),
-                            ),
-                            Text(
-                              lead.displayAssignee,
-                              style: AppTypography.mono(
-                                fontSize: 12,
-                                color: palette.mutedForeground,
+                              Text(
+                                lead.displayAssignee,
+                                style: AppTypography.mono(
+                                  fontSize: 12,
+                                  color: palette.mutedForeground,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

@@ -30,6 +30,7 @@ Future<CrmController> _open(
       opportunitiesApi: MemoryOpportunitiesApi(),
       session: signedInSession(),
       initialSection: section,
+      borderLight: false,
     ),
   );
   await tester.pumpAndSettle();

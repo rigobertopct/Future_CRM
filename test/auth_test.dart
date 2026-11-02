@@ -28,6 +28,7 @@ Future<void> _pumpApp(
       opportunitiesApi: MemoryOpportunitiesApi(),
       session: session,
       initialSection: section,
+      borderLight: false,
     ),
   );
 }
@@ -76,21 +77,37 @@ void main() {
 
   group('SessionStore', () {
     test('rejects an invalid email or a short password', () async {
-      final session = SessionStore(signInDelay: Duration.zero);
+      final auth = MemoryAuthApi();
+      final session = SessionStore(auth: auth);
       expect(await session.signIn('no-es-correo', '1234'), isNotNull);
       expect(await session.signIn('ana@example.com', '12'), isNotNull);
       expect(session.signedIn, isFalse);
+      expect(auth.emails, isEmpty);
     });
 
-    test('the fictitious login opens a demo session', () async {
-      final session = SessionStore(signInDelay: Duration.zero);
+    test('signing in stores the token from acceso', () async {
+      final auth = MemoryAuthApi(token: 'abc');
+      final session = SessionStore(auth: auth);
       expect(await session.signIn(' Ana.Cruz@Example.com ', '123'), isNull);
       expect(session.signedIn, isTrue);
-      expect(session.demo, isTrue);
+      expect(session.client.token, 'abc');
+      expect(auth.emails, ['ana.cruz@example.com']);
       expect(session.profile!.email, 'ana.cruz@example.com');
 
       session.signOut();
       expect(session.signedIn, isFalse);
+      expect(session.client.token, isNull);
+    });
+
+    test('rejected credentials keep the session closed', () async {
+      final session = SessionStore(auth: MemoryAuthApi());
+      expect(
+        await session.signIn('ana@example.com', 'otra'),
+        'Credenciales incorrectas',
+      );
+      expect(session.signedIn, isFalse);
+      expect(session.client.token, isNull);
+      expect(session.busy, isFalse);
     });
 
     test('updateProfile saves only when the API accepts it', () async {
@@ -107,14 +124,6 @@ void main() {
       expect(failing.busy, isFalse);
     });
 
-    test('a demo session cannot delete the shared account', () async {
-      final api = MemoryAccountApi();
-      final session = signedInSession(api: api, demo: true);
-      expect(await session.deleteAccount(), isNotNull);
-      expect(api.calls, isEmpty);
-      expect(session.signedIn, isTrue);
-    });
-
     test('deleteAccount signs out a real session', () async {
       final api = MemoryAccountApi();
       final session = signedInSession(api: api);
@@ -128,7 +137,7 @@ void main() {
     testWidgets('validates, signs in and lands on the app', (tester) async {
       final session = SessionStore(
         api: MemoryAccountApi(),
-        signInDelay: const Duration(milliseconds: 300),
+        auth: MemoryAuthApi(delay: const Duration(milliseconds: 300)),
       );
       await _pumpApp(tester, session);
       await tester.pump(const Duration(milliseconds: 1600));
@@ -169,7 +178,7 @@ void main() {
         tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
       );
 
-      await _pumpApp(tester, SessionStore(signInDelay: Duration.zero));
+      await _pumpApp(tester, SessionStore(auth: MemoryAuthApi()));
       await tester.pumpAndSettle();
 
       expect(find.byType(LoginPage), findsOneWidget);
@@ -222,22 +231,6 @@ void main() {
 
       expect(api.calls, ['eliminar_cuenta']);
       expect(find.byType(LoginPage), findsOneWidget);
-    });
-
-    testWidgets('a demo session cannot start the deletion', (tester) async {
-      await _pumpApp(
-        tester,
-        signedInSession(demo: true),
-        section: CrmSection.account,
-      );
-      await tester.pumpAndSettle();
-
-      await _reveal(tester, 'delete-account');
-      final button = tester.widget<FilledButton>(
-        find.byKey(const ValueKey('delete-account')),
-      );
-      expect(button.onPressed, isNull);
-      expect(find.textContaining('sesión de demostración'), findsOneWidget);
     });
   });
 }

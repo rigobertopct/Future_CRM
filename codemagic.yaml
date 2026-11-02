@@ -1,10 +1,9 @@
 # Codemagic CI — iOS builds that need no Apple Developer account.
 #
 # Both workflows run manually from the Codemagic UI (no triggers) to save the
-# free-tier macOS minutes. Optional env vars CRM_ENDPOINT / CRM_TOKEN /
-# CRM_OWNER override the API defaults in lib/core/api/crm_session.dart.
-# Anything passed with --dart-define is readable from the shipped app, so
-# CRM_TOKEN must only ever be a revocable test/demo token, never a real one.
+# free-tier macOS minutes. Optional env vars CRM_ENDPOINT / CRM_OWNER override
+# the API defaults in lib/core/api/crm_session.dart. The session token comes
+# from the in-app login (`acceso`), never from the build.
 #
 # - ios-simulator: Runner.app for the iOS Simulator, zipped. Upload it to
 #   Appetize.io to share a link where the client uses the app in a browser.
@@ -42,7 +41,6 @@ workflows:
           flutter build ios --simulator --debug \
             --build-number=$BUILD_NUMBER \
             ${CRM_ENDPOINT:+--dart-define=CRM_ENDPOINT=$CRM_ENDPOINT} \
-            ${CRM_TOKEN:+--dart-define=CRM_TOKEN=$CRM_TOKEN} \
             ${CRM_OWNER:+--dart-define=CRM_OWNER=$CRM_OWNER}
       - name: Zip Runner.app
         script: |
@@ -65,7 +63,6 @@ workflows:
           flutter build ios --release --no-codesign \
             --build-number=$BUILD_NUMBER \
             ${CRM_ENDPOINT:+--dart-define=CRM_ENDPOINT=$CRM_ENDPOINT} \
-            ${CRM_TOKEN:+--dart-define=CRM_TOKEN=$CRM_TOKEN} \
             ${CRM_OWNER:+--dart-define=CRM_OWNER=$CRM_OWNER}
       - name: Package .ipa
         script: |

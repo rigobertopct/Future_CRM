@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:future_crm/core/api/crm_client.dart';
+import 'package:future_crm/features/auth/auth_api.dart';
 import 'package:future_crm/features/leads/lead.dart';
 import 'package:future_crm/features/leads/leads_api.dart';
 import 'package:future_crm/features/leads/leads_store.dart';
@@ -137,6 +138,55 @@ void main() {
         'id_contacto': lead.id,
         'etapa': 'abierto - contactado',
       });
+    });
+
+    test('acceso goes without token and later requests carry it', () async {
+      final sent = <Map<String, dynamic>>[];
+      final client = CrmClient(
+        token: 'viejo',
+        client: MockClient((request) async {
+          sent.add(jsonDecode(request.body) as Map<String, dynamic>);
+          return http.Response('{"ok":true,"datos":{"token":"nuevo"}}', 200);
+        }),
+      );
+      final token = await HttpAuthApi(client: client).signIn('a@b.com', '1');
+      client.token = token;
+      await client.post('contactos', {});
+
+      expect(sent[0], {
+        'request': 'acceso',
+        'datos': {'email': 'a@b.com', 'clave': '1'},
+      });
+      expect(sent[1]['token'], 'nuevo');
+    });
+
+    test('a bare 34404 body means the session is not valid', () async {
+      final client = CrmClient(
+        token: '123',
+        client: MockClient((_) async => http.Response('34404', 200)),
+      );
+      expect(
+        client.post('contactos', {}),
+        throwsA(
+          isA<CrmApiException>().having(
+            (e) => e.message,
+            'message',
+            contains('sesión no es válida'),
+          ),
+        ),
+      );
+    });
+
+    test('acceso without a token in the reply fails', () async {
+      final client = CrmClient(
+        client: MockClient(
+          (_) async => http.Response('{"ok":true,"datos":""}', 200),
+        ),
+      );
+      expect(
+        HttpAuthApi(client: client).signIn('a@b.com', '1'),
+        throwsA(isA<CrmApiException>()),
+      );
     });
 
     test('skips deleted contacts', () async {

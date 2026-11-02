@@ -1,4 +1,5 @@
 export 'animated_switcher_helper.dart';
+export 'border_light.dart';
 export 'fade_in_widget.dart';
 export 'loading_shimmer.dart';
 export 'roaming_spinner.dart';

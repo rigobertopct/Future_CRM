@@ -1,6 +1,7 @@
 import 'package:future_crm/core/api/crm_client.dart';
 import 'package:future_crm/features/auth/account.dart';
 import 'package:future_crm/features/auth/account_api.dart';
+import 'package:future_crm/features/auth/auth_api.dart';
 import 'package:future_crm/features/auth/session_store.dart';
 
 class MemoryAccountApi implements AccountApi {
@@ -22,6 +23,30 @@ class MemoryAccountApi implements AccountApi {
   }
 }
 
+/// `acceso` falso: acepta [password] y devuelve [token] tras [delay].
+class MemoryAuthApi implements AuthApi {
+  MemoryAuthApi({
+    this.password = '123',
+    this.token = 'token-de-prueba',
+    this.delay = Duration.zero,
+  });
+
+  final String password;
+  final String token;
+  final Duration delay;
+  final List<String> emails = [];
+
+  @override
+  Future<String> signIn(String email, String password) async {
+    emails.add(email);
+    await Future<void>.delayed(delay);
+    if (password != this.password) {
+      throw CrmApiException('Credenciales incorrectas');
+    }
+    return token;
+  }
+}
+
 const testProfile = AccountProfile(
   firstName: 'Marta',
   lastName: 'Ibáñez',
@@ -30,11 +55,10 @@ const testProfile = AccountProfile(
 );
 
 /// Sesión ya iniciada para los tests que abren la app directamente.
-SessionStore signedInSession({AccountApi? api, bool demo = false}) {
+SessionStore signedInSession({AccountApi? api}) {
   return SessionStore(
     api: api ?? MemoryAccountApi(),
+    auth: MemoryAuthApi(),
     profile: testProfile,
-    demo: demo,
-    signInDelay: Duration.zero,
   );
 }

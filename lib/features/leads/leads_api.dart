@@ -18,7 +18,7 @@ abstract class LeadsApi {
 }
 
 class HttpLeadsApi implements LeadsApi {
-  HttpLeadsApi({CrmClient? client}) : _client = client ?? CrmClient();
+  HttpLeadsApi({required this._client});
 
   final CrmClient _client;
 

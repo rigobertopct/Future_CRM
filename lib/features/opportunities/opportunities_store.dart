@@ -20,8 +20,7 @@ enum OpportunitySort {
 /// La API no tiene una lista global: se piden los contactos y luego
 /// `oportunidades` de cada uno, con pocas peticiones a la vez.
 class OpportunitiesStore extends ChangeNotifier {
-  OpportunitiesStore({OpportunitiesApi? api})
-    : _api = api ?? HttpOpportunitiesApi();
+  OpportunitiesStore({required this._api});
 
   /// Peticiones `oportunidades` simultáneas durante la carga.
   static const int _parallelRequests = 4;

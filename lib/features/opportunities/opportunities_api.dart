@@ -22,7 +22,7 @@ abstract class OpportunitiesApi {
 }
 
 class HttpOpportunitiesApi implements OpportunitiesApi {
-  HttpOpportunitiesApi({CrmClient? client}) : _client = client ?? CrmClient();
+  HttpOpportunitiesApi({required this._client});
 
   final CrmClient _client;
 

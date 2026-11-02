@@ -26,16 +26,26 @@ class CrmEnvelope {
 }
 
 class CrmClient {
-  CrmClient({http.Client? client, String? endpoint, String? token})
+  CrmClient({http.Client? client, String? endpoint, this.token})
     : _client = client ?? http.Client(),
-      endpoint = endpoint ?? CrmSession.endpoint,
-      token = token ?? CrmSession.token;
+      endpoint = endpoint ?? CrmSession.endpoint;
+
+  /// Respuesta, sin JSON, que da el API cuando el token no es válido.
+  static const _invalidTokenBody = '34404';
 
   final http.Client _client;
   final String endpoint;
-  final String token;
 
-  Future<CrmEnvelope> post(String request, Map<String, dynamic> datos) async {
+  /// Token de la sesión, obtenido con `acceso`. `null` sin sesión.
+  String? token;
+
+  /// Envía [request]. Con [authenticated] en `false` (login y registro) la
+  /// petición va sin token, como pide el API.
+  Future<CrmEnvelope> post(
+    String request,
+    Map<String, dynamic> datos, {
+    bool authenticated = true,
+  }) async {
     final http.Response response;
     try {
       response = await _client
@@ -43,7 +53,7 @@ class CrmClient {
             Uri.parse(endpoint),
             headers: const {'Content-Type': 'application/json'},
             body: jsonEncode({
-              'token': token,
+              if (authenticated && token != null) 'token': token,
               'request': request,
               'datos': datos,
             }),
@@ -59,6 +69,10 @@ class CrmClient {
         'No se pudo conectar con el servidor',
         cause: error,
       );
+    }
+
+    if (response.body.trim() == _invalidTokenBody) {
+      throw CrmApiException('Tu sesión no es válida. Vuelve a iniciar sesión.');
     }
 
     Object? decoded;

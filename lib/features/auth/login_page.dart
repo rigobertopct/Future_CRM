@@ -365,11 +365,6 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                       onPressed: _submit,
                     ),
                   ),
-                  const SizedBox(height: 18),
-                  _Reveal(
-                    animation: _step(0.65, 1),
-                    child: const _DemoNotice(),
-                  ),
                 ],
               ),
             ),
@@ -653,7 +648,12 @@ class _GlowCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      foregroundPainter: _BorderLightPainter(ambient: ambient),
+      foregroundPainter: BorderLightPainter(
+        animation: ambient,
+        radius: 20,
+        turns: 3,
+        baseColor: SidebarColors.border,
+      ),
       child: Container(
         padding: const EdgeInsets.fromLTRB(24, 26, 24, 22),
         decoration: BoxDecoration(
@@ -672,46 +672,6 @@ class _GlowCard extends StatelessWidget {
       ),
     );
   }
-}
-
-class _BorderLightPainter extends CustomPainter {
-  _BorderLightPainter({required this.ambient}) : super(repaint: ambient);
-
-  final Animation<double> ambient;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = (Offset.zero & size).deflate(0.5);
-    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(20));
-    canvas.drawRRect(
-      rrect,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = SidebarColors.border,
-    );
-    final angle = ambient.value * math.pi * 2 * 3;
-    canvas.drawRRect(
-      rrect,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..shader = SweepGradient(
-          colors: [
-            SidebarColors.brand.withValues(alpha: 0),
-            SidebarColors.brand.withValues(alpha: 0.9),
-            SidebarColors.brand.withValues(alpha: 0),
-            SidebarColors.brand.withValues(alpha: 0),
-          ],
-          stops: const [0, 0.08, 0.18, 1],
-          transform: GradientRotation(angle),
-        ).createShader(rect),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_BorderLightPainter oldDelegate) =>
-      oldDelegate.ambient != ambient;
 }
 
 class _SubmitButton extends StatelessWidget {
@@ -804,40 +764,6 @@ class _SubmitButton extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _DemoNotice extends StatelessWidget {
-  const _DemoNotice();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: SidebarColors.surface,
-        borderRadius: BorderRadius.circular(AppTheme.radius),
-        border: Border.all(color: SidebarColors.border),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.science_outlined,
-            size: 16,
-            color: SidebarColors.brand,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Acceso de demostración: cualquier correo válido y una '
-              'contraseña de ${SessionStore.minPasswordLength}+ caracteres.',
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(color: SidebarColors.muted),
-            ),
-          ),
-        ],
       ),
     );
   }

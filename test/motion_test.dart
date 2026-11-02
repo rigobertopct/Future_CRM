@@ -123,4 +123,46 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
+
+  group('BorderLight', () {
+    Finder lightPaint() => find.byWidgetPredicate(
+      (w) => w is CustomPaint && w.foregroundPainter is BorderLightPainter,
+    );
+
+    Widget card({bool enabled = true}) => BorderLightScope(
+      enabled: enabled,
+      child: const BorderLight(radius: 14, child: SizedBox(height: 40)),
+    );
+
+    testWidgets('sweeps the border while the scope runs', (tester) async {
+      await tester.pumpWidget(_host(card()));
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(lightPaint(), findsOneWidget);
+      expect(tester.hasRunningAnimations, isTrue);
+    });
+
+    testWidgets('is off with reduced motion', (tester) async {
+      await tester.pumpWidget(_host(card(), disableAnimations: true));
+
+      expect(lightPaint(), findsNothing);
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+
+    testWidgets('is off when the scope is disabled', (tester) async {
+      await tester.pumpWidget(_host(card(enabled: false)));
+
+      expect(lightPaint(), findsNothing);
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+
+    testWidgets('renders the plain child without a scope', (tester) async {
+      await tester.pumpWidget(
+        _host(const BorderLight(radius: 14, child: Text('Tarjeta'))),
+      );
+
+      expect(find.text('Tarjeta'), findsOneWidget);
+      expect(lightPaint(), findsNothing);
+    });
+  });
 }

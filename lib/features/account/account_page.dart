@@ -30,7 +30,7 @@ class AccountPage extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.only(top: 12, bottom: 24),
             children: staggerWidgets([
-              _Identity(profile: profile, demo: session.demo),
+              _Identity(profile: profile),
               const _SectionTitle('Datos personales'),
               _ProfileForm(session: session, profile: profile),
               const _SectionTitle('Sesión'),
@@ -46,10 +46,9 @@ class AccountPage extends StatelessWidget {
 }
 
 class _Identity extends StatelessWidget {
-  const _Identity({required this.profile, required this.demo});
+  const _Identity({required this.profile});
 
   final AccountProfile profile;
-  final bool demo;
 
   @override
   Widget build(BuildContext context) {
@@ -114,12 +113,6 @@ class _Identity extends StatelessWidget {
                       color: Tones.info(context),
                       icon: Icons.badge_outlined,
                     ),
-                    if (demo)
-                      StatusChip(
-                        label: 'Demostración',
-                        color: Tones.warning(context),
-                        icon: Icons.science_outlined,
-                      ),
                   ],
                 ),
               ],
@@ -381,10 +374,7 @@ class _DangerZone extends StatelessWidget {
           Text('Eliminar cuenta', style: text.titleMedium),
           const SizedBox(height: 4),
           Text(
-            session.demo
-                ? 'No disponible en la sesión de demostración: borraría la '
-                      'cuenta de pruebas que comparten todos.'
-                : 'Borra tu cuenta y cierra la sesión. No se puede deshacer.',
+            'Borra tu cuenta y cierra la sesión. No se puede deshacer.',
             style: text.bodySmall?.copyWith(color: palette.mutedForeground),
           ),
           const SizedBox(height: 12),
@@ -395,9 +385,7 @@ class _DangerZone extends StatelessWidget {
               foregroundColor: palette.destructiveForeground,
               minimumSize: const Size(48, 48),
             ),
-            onPressed: session.demo || session.busy
-                ? null
-                : () => _delete(context),
+            onPressed: session.busy ? null : () => _delete(context),
             icon: const Icon(Icons.delete_forever_outlined, size: 18),
             label: const Text('Eliminar mi cuenta'),
           ),
