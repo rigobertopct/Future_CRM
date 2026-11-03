@@ -11,6 +11,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'memory_account_api.dart';
 import 'memory_leads_api.dart';
 import 'memory_opportunities_api.dart';
+import 'memory_tasks_api.dart';
 import 'sample_leads.dart';
 
 Future<void> _pumpApp(
@@ -26,6 +27,7 @@ Future<void> _pumpApp(
     MyApp(
       leadsApi: MemoryLeadsApi(sampleLeads),
       opportunitiesApi: MemoryOpportunitiesApi(),
+      tasksApi: MemoryTasksApi(),
       session: session,
       initialSection: section,
       borderLight: false,

@@ -13,9 +13,18 @@ import '../../shared/widgets/page_frame.dart';
 import '../../shared/widgets/quick_form.dart';
 import '../../shared/widgets/status_chip.dart';
 import '../../shared/widgets/surface_card.dart';
+import '../opportunities/opportunity.dart';
 import 'tasks_store.dart';
 
-const _dueOptions = {'Hoy': 0, 'Mañana': 1, 'En 3 días': 3, 'En 1 semana': 7};
+const _dueOptions = <String, int?>{
+  'Hoy': 0,
+  'Mañana': 1,
+  'En 3 días': 3,
+  'En 1 semana': 7,
+  'Sin fecha': null,
+};
+
+const _noContact = 'Sin contacto';
 
 Color _priorityColor(BuildContext context, TaskPriority priority) {
   final palette = AppPalette.of(context);
@@ -64,45 +73,80 @@ class TasksPage extends StatelessWidget {
             FilterOption(f, f.label, count: store.countFor(f)),
         ],
       ),
-      child: items.isEmpty
-          ? EmptyState(
-              icon: store.filter == TaskFilter.done
-                  ? Icons.inbox_outlined
-                  : Icons.task_alt,
-              title: store.filter == TaskFilter.overdue
-                  ? 'Nada vencido'
-                  : 'Sin tareas aquí',
-              message: store.filter == TaskFilter.all
-                  ? 'Crea una tarea para empezar.'
-                  : 'No hay tareas que coincidan con este filtro.',
-              actionLabel: store.filter == TaskFilter.all ? null : 'Ver todas',
-              onAction: () => store.setFilter(TaskFilter.all),
-            )
-          : ListView.separated(
-              padding: const EdgeInsets.only(top: 8, bottom: 24),
-              itemCount: items.length + 1,
-              separatorBuilder: (_, _) => const SizedBox(height: 10),
-              itemBuilder: (context, index) {
-                if (index == 0) return _Progress(store: store);
-                final task = items[index - 1];
-                return FadeInWidget(
-                  key: ValueKey(task.id),
-                  delay: Duration(milliseconds: 40 * (index < 8 ? index : 8)),
-                  child: _TaskTile(task: task, store: store),
-                );
-              },
-            ),
+      child: Column(
+        children: [
+          if (store.loading && store.all.isNotEmpty)
+            const LinearProgressIndicator(),
+          if (store.error != null && store.all.isNotEmpty)
+            ErrorRow(message: store.error!, onRetry: store.refresh),
+          Expanded(child: _body(store, items)),
+        ],
+      ),
+    );
+  }
+
+  Widget _body(TasksStore store, List<Task> items) {
+    if (store.all.isEmpty) {
+      if (store.loading) {
+        return const SkeletonList(semanticLabel: 'Cargando tareas');
+      }
+      if (store.error != null) {
+        return EmptyState(
+          icon: Icons.cloud_off_outlined,
+          title: 'Sin conexión con el CRM',
+          message: store.error!,
+          actionLabel: 'Reintentar',
+          onAction: store.refresh,
+        );
+      }
+    }
+    if (items.isEmpty) {
+      return EmptyState(
+        icon: store.filter == TaskFilter.done
+            ? Icons.inbox_outlined
+            : Icons.task_alt,
+        title: store.filter == TaskFilter.overdue
+            ? 'Nada vencido'
+            : 'Sin tareas aquí',
+        message: store.filter == TaskFilter.all
+            ? 'Crea una tarea para empezar.'
+            : 'No hay tareas que coincidan con este filtro.',
+        actionLabel: store.filter == TaskFilter.all ? null : 'Ver todas',
+        onAction: () => store.setFilter(TaskFilter.all),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.only(top: 8, bottom: 24),
+      itemCount: items.length + 1,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        if (index == 0) return _Progress(store: store);
+        final task = items[index - 1];
+        return FadeInWidget(
+          key: ValueKey(task.id),
+          delay: Duration(milliseconds: 40 * (index < 8 ? index : 8)),
+          child: _TaskTile(task: task, store: store),
+        );
+      },
     );
   }
 
   Future<void> _create(BuildContext context, TasksStore store) async {
+    final contacts = _contactOptions(
+      CrmScope.of(context).opportunities.contacts,
+    );
     final values = await showQuickForm(
       context,
       title: 'Nueva tarea',
       submitLabel: 'Crear tarea',
       fields: [
         const FieldSpec('title', 'Título'),
-        const FieldSpec('related', 'Cuenta u oportunidad', required: false),
+        FieldSpec(
+          'type',
+          'Tipo',
+          options: [for (final t in TaskType.values) t.label],
+          initial: TaskType.followUp.label,
+        ),
         FieldSpec(
           'priority',
           'Prioridad',
@@ -110,18 +154,49 @@ class TasksPage extends StatelessWidget {
           initial: TaskPriority.medium.label,
         ),
         FieldSpec('due', 'Vence', options: _dueOptions.keys.toList()),
+        if (contacts.length > 1)
+          FieldSpec(
+            'contact',
+            'Contacto',
+            options: contacts.keys.toList(),
+            initial: _noContact,
+          ),
       ],
     );
     if (values == null || !context.mounted) return;
-    store.add(
-      title: values['title']!,
-      related: values['related']!.isEmpty ? 'General' : values['related']!,
-      priority: TaskPriority.values.firstWhere(
-        (p) => p.label == values['priority'],
+    final days = _dueOptions[values['due']];
+    final now = store.now;
+    final error = await store.add(
+      TaskDraft(
+        title: values['title']!,
+        type: TaskType.values.firstWhere((t) => t.label == values['type']),
+        priority: TaskPriority.values.firstWhere(
+          (p) => p.label == values['priority'],
+        ),
+        // Vence al final de la jornada del día elegido.
+        due: days == null
+            ? null
+            : DateTime(now.year, now.month, now.day + days, 18),
+        contactId: contacts[values['contact']],
       ),
-      dueInDays: _dueOptions[values['due']]!,
     );
-    showMessage(context, 'Tarea creada.');
+    if (context.mounted) showMessage(context, error ?? 'Tarea creada.');
+  }
+
+  /// Etiqueta visible → id de contacto. Las etiquetas repetidas llevan un
+  /// número para que dos contactos homónimos no se confundan.
+  static Map<String, String?> _contactOptions(
+    List<OpportunityContact> contacts,
+  ) {
+    final options = <String, String?>{_noContact: null};
+    for (final contact in contacts) {
+      var label = contact.label;
+      for (var n = 2; options.containsKey(label); n++) {
+        label = '${contact.label} ($n)';
+      }
+      options[label] = contact.id;
+    }
+    return options;
   }
 }
 
@@ -179,14 +254,29 @@ class _TaskTile extends StatelessWidget {
   final Task task;
   final TasksStore store;
 
+  /// La tarea sale de la lista al momento y se borra en la API cuando la
+  /// barra se cierra sin deshacer.
   void _delete(BuildContext context) {
     final removed = store.remove(task.id);
     if (removed == null) return;
+    // La fila ya no estará montada: los avisos usan el ScaffoldMessenger.
+    final messenger = ScaffoldMessenger.of(context);
     showUndoBar(
       context,
       message: '¿Confirmas la eliminación de la tarea "${removed.title}"?',
       onUndo: () => store.restore(removed),
+      onConfirm: () async {
+        final error = await store.commitRemoval(removed);
+        if (error != null && messenger.mounted) {
+          showMessage(messenger.context, error);
+        }
+      },
     );
+  }
+
+  Future<void> _toggle(BuildContext context) async {
+    final error = await store.toggle(task.id);
+    if (error != null && context.mounted) showMessage(context, error);
   }
 
   @override
@@ -199,6 +289,7 @@ class _TaskTile extends StatelessWidget {
     final duration = AppMotion.reduced(context)
         ? Duration.zero
         : AppMotion.base;
+    final due = task.due;
 
     return Dismissible(
       key: ValueKey('dismiss-${task.id}'),
@@ -224,7 +315,7 @@ class _TaskTile extends StatelessWidget {
                   : 'Marcar como completada',
               child: IconButton(
                 key: ValueKey('toggle-${task.id}'),
-                onPressed: () => store.toggle(task.id),
+                onPressed: () => _toggle(context),
                 icon: AnimatedSwitcher(
                   duration: duration,
                   transitionBuilder: (child, a) =>
@@ -270,6 +361,13 @@ class _TaskTile extends StatelessWidget {
                         color: priorityColor,
                         icon: Icons.flag_outlined,
                       ),
+                      // Completada y pendiente ya se ven en el check.
+                      if (task.status != TaskStatus.pending &&
+                          task.status != TaskStatus.completed)
+                        StatusChip(
+                          label: task.status.label,
+                          color: palette.mutedForeground,
+                        ),
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -280,7 +378,9 @@ class _TaskTile extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            Fmt.relativeDay(task.due, store.now),
+                            due == null
+                                ? 'Sin fecha'
+                                : Fmt.relativeDay(due, store.now),
                             style: AppTypography.mono(
                               fontSize: 12,
                               color: dueColor,
@@ -289,7 +389,9 @@ class _TaskTile extends StatelessWidget {
                         ],
                       ),
                       Text(
-                        task.related,
+                        task.contact.isEmpty
+                            ? task.type.label
+                            : '${task.type.label} · ${task.contact}',
                         style: text.bodySmall?.copyWith(
                           color: palette.mutedForeground,
                         ),

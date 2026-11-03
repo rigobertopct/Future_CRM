@@ -131,7 +131,7 @@ class Opportunity {
     final probability = double.tryParse(_text(json['probabilidad']));
     return Opportunity(
       id: _text(json['id']),
-      contactId: _text(json['contacto']),
+      contactId: _text(json['id_contacto'] ?? json['contacto']),
       name: _text(json['nombre']),
       company: _text(json['empresa']),
       amount: double.tryParse(_text(json['valor'])) ?? 0,

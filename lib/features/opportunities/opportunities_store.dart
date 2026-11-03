@@ -16,14 +16,8 @@ enum OpportunitySort {
 }
 
 /// Pipeline de oportunidades de la API, con filtros, búsqueda y orden.
-///
-/// La API no tiene una lista global: se piden los contactos y luego
-/// `oportunidades` de cada uno, con pocas peticiones a la vez.
 class OpportunitiesStore extends ChangeNotifier {
   OpportunitiesStore({required this._api});
-
-  /// Peticiones `oportunidades` simultáneas durante la carga.
-  static const int _parallelRequests = 4;
 
   final OpportunitiesApi _api;
   final List<Opportunity> _items = [];
@@ -105,40 +99,18 @@ class OpportunitiesStore extends ChangeNotifier {
     _error = null;
     _notify();
     try {
-      final contacts = await _api.contacts();
+      // Future.wait relanza el error original (con `.wait` llegaría envuelto).
+      final contactsRequest = _api.contacts();
+      final results = await Future.wait<Object>([contactsRequest, _api.all()]);
       if (generation != _generation) return;
-
-      final loaded = <Opportunity>[];
-      var failures = 0;
-      for (var i = 0; i < contacts.length; i += _parallelRequests) {
-        final batch = contacts.skip(i).take(_parallelRequests);
-        final results = await Future.wait(
-          batch.map((contact) async {
-            try {
-              return await _api.forContact(contact.id);
-            } on Object {
-              failures++;
-              return const <Opportunity>[];
-            }
-          }),
-        );
-        if (generation != _generation) return;
-        for (final list in results) {
-          loaded.addAll(list);
-        }
-      }
-
+      final contacts = results[0] as List<OpportunityContact>;
+      final loaded = results[1] as List<Opportunity>;
       _contacts
         ..clear()
         ..addEntries(contacts.map((c) => MapEntry(c.id, c)));
       _items
         ..clear()
         ..addAll(loaded);
-      if (failures > 0) {
-        _error = failures == contacts.length
-            ? 'No se pudieron cargar las oportunidades'
-            : 'Algunas oportunidades no se pudieron cargar';
-      }
     } catch (error) {
       if (generation != _generation) return;
       _error = _message(error);

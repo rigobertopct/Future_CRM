@@ -12,12 +12,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'memory_account_api.dart';
 import 'memory_leads_api.dart';
 import 'memory_opportunities_api.dart';
+import 'memory_tasks_api.dart';
 import 'sample_leads.dart';
 
 Future<CrmController> _open(
   WidgetTester tester, {
   CrmSection section = CrmSection.dashboard,
   Size size = const Size(1440, 900),
+  MemoryTasksApi? tasksApi,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -28,6 +30,7 @@ Future<CrmController> _open(
     MyApp(
       leadsApi: MemoryLeadsApi(sampleLeads),
       opportunitiesApi: MemoryOpportunitiesApi(),
+      tasksApi: tasksApi ?? MemoryTasksApi(),
       session: signedInSession(),
       initialSection: section,
       borderLight: false,
@@ -313,7 +316,8 @@ void main() {
     });
 
     testWidgets('swipe deletes and the snackbar can undo it', (tester) async {
-      final crm = await _open(tester, section: CrmSection.tasks);
+      final api = MemoryTasksApi();
+      final crm = await _open(tester, section: CrmSection.tasks, tasksApi: api);
       final pending = crm.tasks.pendingCount;
 
       await tester.drag(
@@ -326,6 +330,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('undo-bar-undo')));
       await tester.pumpAndSettle();
       expect(crm.tasks.pendingCount, pending);
+      expect(api.deleted, isEmpty, reason: 'undo never reaches the API');
     });
   });
 
@@ -333,7 +338,8 @@ void main() {
     testWidgets('closes by itself after ten seconds if nobody undoes', (
       tester,
     ) async {
-      final crm = await _open(tester, section: CrmSection.tasks);
+      final api = MemoryTasksApi();
+      final crm = await _open(tester, section: CrmSection.tasks, tasksApi: api);
       final pending = crm.tasks.pendingCount;
 
       await tester.drag(
@@ -354,6 +360,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('undo-bar-undo')), findsNothing);
       expect(crm.tasks.pendingCount, pending - 1, reason: 'deletion stands');
+      expect(api.deleted, ['tk-1']);
     });
 
     testWidgets('the check confirms and dismisses it right away', (

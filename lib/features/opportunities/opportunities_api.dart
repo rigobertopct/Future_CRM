@@ -5,7 +5,10 @@ abstract class OpportunitiesApi {
   /// Contactos que pueden tener oportunidades.
   Future<List<OpportunityContact>> contacts();
 
-  /// `oportunidades` solo lista las de un contacto.
+  /// Todas las oportunidades (`oportunidades`, sin parámetros).
+  Future<List<Opportunity>> all();
+
+  /// Las de un contacto (`oportunidades_contacto`).
   Future<List<Opportunity>> forContact(String contactId);
 
   Future<void> create(OpportunityDraft draft);
@@ -36,8 +39,16 @@ class HttpOpportunitiesApi implements OpportunitiesApi {
   }
 
   @override
+  Future<List<Opportunity>> all() async {
+    final envelope = await _client.post('oportunidades', {'exec': 'ok'});
+    return [
+      for (final item in _list(envelope.datos)) Opportunity.fromJson(item),
+    ];
+  }
+
+  @override
   Future<List<Opportunity>> forContact(String contactId) async {
-    final envelope = await _client.post('oportunidades', {
+    final envelope = await _client.post('oportunidades_contacto', {
       'id_contacto': contactId,
     });
     return [

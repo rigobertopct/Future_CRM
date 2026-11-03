@@ -12,6 +12,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'memory_account_api.dart';
 import 'memory_leads_api.dart';
 import 'memory_opportunities_api.dart';
+import 'memory_tasks_api.dart';
 
 void main() {
   test('Lead maps the CRM contact payload', () {
@@ -56,6 +57,7 @@ void main() {
       MyApp(
         leadsApi: MemoryLeadsApi(sampleLeads),
         opportunitiesApi: MemoryOpportunitiesApi(),
+        tasksApi: MemoryTasksApi(),
         session: signedInSession(),
         initialSection: CrmSection.leads,
         borderLight: false,
@@ -88,6 +90,7 @@ void main() {
       MyApp(
         leadsApi: MemoryLeadsApi(sampleLeads),
         opportunitiesApi: MemoryOpportunitiesApi(),
+        tasksApi: MemoryTasksApi(),
         session: signedInSession(),
         initialSection: CrmSection.leads,
         borderLight: false,
@@ -134,6 +137,7 @@ void main() {
       MyApp(
         leadsApi: MemoryLeadsApi(sampleLeads),
         opportunitiesApi: MemoryOpportunitiesApi(),
+        tasksApi: MemoryTasksApi(),
         session: signedInSession(),
         initialSection: CrmSection.leads,
         borderLight: false,

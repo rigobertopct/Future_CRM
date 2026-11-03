@@ -109,7 +109,7 @@ class OpportunitiesPage extends StatelessWidget {
           if (store.loading && store.all.isNotEmpty)
             const LinearProgressIndicator(),
           if (store.error != null && store.all.isNotEmpty)
-            _ErrorRow(message: store.error!, onRetry: store.refresh),
+            ErrorRow(message: store.error!, onRetry: store.refresh),
           Expanded(child: _body(context, store, items)),
         ],
       ),
@@ -409,38 +409,6 @@ extension on _OpportunityCard {
     final error = await store.remove(item.id);
     if (!context.mounted) return;
     showMessage(context, error ?? '"${item.name}" eliminada.');
-  }
-}
-
-class _ErrorRow extends StatelessWidget {
-  const _ErrorRow({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
-    return Semantics(
-      liveRegion: true,
-      child: Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: Row(
-          children: [
-            Icon(Icons.error_outline, size: 18, color: palette.destructive),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message,
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(color: palette.mutedForeground),
-              ),
-            ),
-            TextButton(onPressed: onRetry, child: const Text('Reintentar')),
-          ],
-        ),
-      ),
-    );
   }
 }
 

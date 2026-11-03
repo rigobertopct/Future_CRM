@@ -9,6 +9,7 @@ import 'features/auth/session_store.dart';
 import 'features/leads/leads_api.dart';
 import 'features/opportunities/opportunities_api.dart';
 import 'features/shell/crm_shell.dart';
+import 'features/tasks/tasks_api.dart';
 
 void main() {
   runApp(const MyApp());
@@ -19,6 +20,7 @@ class MyApp extends StatefulWidget {
     super.key,
     this.leadsApi,
     this.opportunitiesApi,
+    this.tasksApi,
     this.session,
     this.initialSection = CrmSection.dashboard,
     this.borderLight = true,
@@ -26,6 +28,7 @@ class MyApp extends StatefulWidget {
 
   final LeadsApi? leadsApi;
   final OpportunitiesApi? opportunitiesApi;
+  final TasksApi? tasksApi;
 
   /// Sesión inicial. Sin ella la app abre en el login.
   final SessionStore? session;
@@ -43,6 +46,7 @@ class _MyAppState extends State<MyApp> {
   late final CrmController _crm = CrmController(
     leadsApi: widget.leadsApi,
     opportunitiesApi: widget.opportunitiesApi,
+    tasksApi: widget.tasksApi,
     session: widget.session,
     section: widget.initialSection,
   );

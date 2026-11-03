@@ -25,7 +25,8 @@ void showMessage(BuildContext context, String text) {
 /// Una sola fila: el [message] y dos iconos, un check que confirma y una cruz
 /// que deshace. Si no se toca ninguno, la acción queda confirmada al cabo de
 /// [undoWindow] y la barra se cierra sola; una línea inferior muestra el
-/// tiempo restante.
+/// tiempo restante. [onConfirm] se llama cuando la barra se cierra sin
+/// deshacer: con el check, al agotarse el tiempo o al ser reemplazada.
 void showUndoBar(
   BuildContext context, {
   required String message,
@@ -36,33 +37,42 @@ void showUndoBar(
   final palette = AppPalette.of(context);
   final wide = MediaQuery.sizeOf(context).width >= 640;
 
+  var undone = false;
+  messenger.hideCurrentSnackBar();
   messenger
-    ..hideCurrentSnackBar()
-    ..showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        // Flutter mantiene fijo un SnackBar con acción salvo que se indique.
-        persist: false,
-        duration: undoWindow,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        padding: EdgeInsets.zero,
-        width: wide ? 520 : null,
-        margin: wide ? null : const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        content: _UndoBar(
-          message: message,
-          palette: palette,
-          onConfirm: () {
-            messenger.hideCurrentSnackBar(reason: SnackBarClosedReason.action);
-            onConfirm?.call();
-          },
-          onUndo: () {
-            messenger.hideCurrentSnackBar(reason: SnackBarClosedReason.action);
-            onUndo();
-          },
+      .showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          // Flutter mantiene fijo un SnackBar con acción salvo que se indique.
+          persist: false,
+          duration: undoWindow,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          padding: EdgeInsets.zero,
+          width: wide ? 520 : null,
+          margin: wide ? null : const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          content: _UndoBar(
+            message: message,
+            palette: palette,
+            onConfirm: () {
+              messenger.hideCurrentSnackBar(
+                reason: SnackBarClosedReason.action,
+              );
+            },
+            onUndo: () {
+              undone = true;
+              messenger.hideCurrentSnackBar(
+                reason: SnackBarClosedReason.action,
+              );
+              onUndo();
+            },
+          ),
         ),
-      ),
-    );
+      )
+      .closed
+      .then((_) {
+        if (!undone) onConfirm?.call();
+      });
 }
 
 class _UndoBar extends StatelessWidget {

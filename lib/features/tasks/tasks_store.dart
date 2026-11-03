@@ -1,14 +1,10 @@
 import 'package:flutter/foundation.dart';
 
-enum TaskPriority {
-  low('Baja'),
-  medium('Media'),
-  high('Alta');
+import '../../core/api/crm_client.dart';
+import 'task.dart';
+import 'tasks_api.dart';
 
-  const TaskPriority(this.label);
-
-  final String label;
-}
+export 'task.dart';
 
 enum TaskFilter {
   all('Todas'),
@@ -21,60 +17,47 @@ enum TaskFilter {
   final String label;
 }
 
-@immutable
-class Task {
-  const Task({
-    required this.id,
-    required this.title,
-    required this.due,
-    required this.priority,
-    required this.related,
-    this.done = false,
-  });
-
-  final String id;
-  final String title;
-  final DateTime due;
-  final TaskPriority priority;
-
-  /// Cuenta u oportunidad a la que pertenece la tarea.
-  final String related;
-  final bool done;
-
-  Task copyWith({bool? done}) => Task(
-    id: id,
-    title: title,
-    due: due,
-    priority: priority,
-    related: related,
-    done: done ?? this.done,
-  );
-}
-
+/// Tareas de la API (`tareas`) con filtros y búsqueda.
 class TasksStore extends ChangeNotifier {
-  TasksStore({DateTime? now, List<Task>? seed}) : _now = now ?? DateTime.now() {
-    _items = List.of(seed ?? _sample(_now));
-    _nextId = _items.length + 1;
-  }
+  TasksStore({required this._api, DateTime Function()? clock})
+    : _clock = clock ?? DateTime.now;
 
-  final DateTime _now;
-  late List<Task> _items;
-  late int _nextId;
+  final TasksApi _api;
+  final DateTime Function() _clock;
+  final List<Task> _items = [];
+
+  /// Tareas quitadas de la lista cuyo borrado aún se puede deshacer. Una
+  /// recarga no las vuelve a mostrar.
+  final Set<String> _pendingRemovals = {};
 
   TaskFilter filter = TaskFilter.all;
   String _query = '';
+  bool _loading = false;
+  String? _error;
+  int _generation = 0;
+  bool _disposed = false;
 
-  DateTime get now => _now;
+  DateTime get now => _clock();
   String get query => _query;
+  bool get loading => _loading;
+  String? get error => _error;
+  List<Task> get all => List.unmodifiable(_items);
 
-  DateTime get _today => DateTime(_now.year, _now.month, _now.day);
+  DateTime get _today {
+    final now = this.now;
+    return DateTime(now.year, now.month, now.day);
+  }
 
-  bool isOverdue(Task t) => !t.done && t.due.isBefore(_today);
+  bool isOverdue(Task t) => !t.done && t.due != null && t.due!.isBefore(_today);
 
-  bool isToday(Task t) =>
-      t.due.year == _now.year &&
-      t.due.month == _now.month &&
-      t.due.day == _now.day;
+  bool isToday(Task t) {
+    final due = t.due;
+    final now = this.now;
+    return due != null &&
+        due.year == now.year &&
+        due.month == now.month &&
+        due.day == now.day;
+  }
 
   bool _matches(Task t, TaskFilter f) => switch (f) {
     TaskFilter.all => !t.done,
@@ -83,17 +66,19 @@ class TasksStore extends ChangeNotifier {
     TaskFilter.done => t.done,
   };
 
+  /// Por fecha (las que no tienen van al final) y luego por prioridad.
   List<Task> get visible {
     final q = _query.toLowerCase();
     final list = _items.where((t) {
       if (!_matches(t, filter)) return false;
       if (q.isEmpty) return true;
       return t.title.toLowerCase().contains(q) ||
-          t.related.toLowerCase().contains(q);
+          t.contact.toLowerCase().contains(q);
     }).toList();
     list.sort((a, b) {
-      final byPriority = b.priority.index.compareTo(a.priority.index);
-      return a.due == b.due ? byPriority : a.due.compareTo(b.due);
+      final byDate = _compareDates(a.due, b.due);
+      if (byDate != 0) return byDate;
+      return b.priority.index.compareTo(a.priority.index);
     });
     return list;
   }
@@ -117,100 +102,112 @@ class TasksStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggle(String id) {
+  /// Recarga las tareas. Una carga nueva descarta la anterior.
+  Future<void> refresh() async {
+    final generation = ++_generation;
+    _loading = true;
+    _error = null;
+    _notify();
+    try {
+      final loaded = await _api.list();
+      if (generation != _generation) return;
+      _items
+        ..clear()
+        ..addAll(loaded.where((t) => !_pendingRemovals.contains(t.id)));
+    } catch (error) {
+      if (generation != _generation) return;
+      _error = _message(error);
+    } finally {
+      if (generation == _generation) {
+        _loading = false;
+        _notify();
+      }
+    }
+  }
+
+  /// Marca la tarea como completada o pendiente al momento y lo deshace si la
+  /// API lo rechaza. Devuelve el mensaje de error, o `null`.
+  Future<String?> toggle(String id) async {
     final index = _items.indexWhere((t) => t.id == id);
-    if (index < 0) return;
-    _items[index] = _items[index].copyWith(done: !_items[index].done);
-    notifyListeners();
+    if (index < 0) return 'No se encontró la tarea';
+    final previous = _items[index];
+    final status = previous.done ? TaskStatus.pending : TaskStatus.completed;
+
+    _items[index] = previous.copyWith(status: status);
+    _notify();
+    try {
+      await _api.updateStatus(id, status);
+      return null;
+    } catch (error) {
+      final current = _items.indexWhere((t) => t.id == id);
+      if (current >= 0) _items[current] = previous;
+      _notify();
+      return _message(error);
+    }
   }
 
-  Task add({
-    required String title,
-    required TaskPriority priority,
-    required int dueInDays,
-    String related = 'General',
-  }) {
-    final created = Task(
-      id: 'tk-${_nextId++}',
-      title: title,
-      due: _today.add(Duration(days: dueInDays)),
-      priority: priority,
-      related: related,
-    );
-    _items.insert(0, created);
-    notifyListeners();
-    return created;
+  /// Crea la tarea y recarga la lista para recibir su id y su contacto.
+  Future<String?> add(TaskDraft draft) async {
+    try {
+      await _api.create(draft);
+    } catch (error) {
+      return _message(error);
+    }
+    await refresh();
+    return null;
   }
 
-  /// Elimina la tarea y la devuelve para poder deshacer.
+  /// Quita la tarea de la lista y la devuelve para poder deshacer. El borrado
+  /// en la API ocurre en [commitRemoval].
   Task? remove(String id) {
     final index = _items.indexWhere((t) => t.id == id);
     if (index < 0) return null;
     final removed = _items.removeAt(index);
-    notifyListeners();
+    _pendingRemovals.add(id);
+    _notify();
     return removed;
   }
 
   void restore(Task task) {
+    _pendingRemovals.remove(task.id);
     if (_items.any((t) => t.id == task.id)) return;
     _items.insert(0, task);
-    notifyListeners();
+    _notify();
   }
 
-  static List<Task> _sample(DateTime now) {
-    final today = DateTime(now.year, now.month, now.day);
-    Task task(
-      int n,
-      String title,
-      int days,
-      TaskPriority p,
-      String related, {
-      bool done = false,
-    }) => Task(
-      id: 'tk-$n',
-      title: title,
-      due: today.add(Duration(days: days)),
-      priority: p,
-      related: related,
-      done: done,
-    );
-    const high = TaskPriority.high;
-    const mid = TaskPriority.medium;
-    const low = TaskPriority.low;
-    return [
-      task(1, 'Enviar propuesta final a Nexora Labs', 0, high, 'Nexora Labs'),
-      task(
-        2,
-        'Llamada de seguimiento con Veltrix',
-        0,
-        high,
-        'Veltrix Logística',
-      ),
-      task(3, 'Preparar demo de analítica', 1, mid, 'Grupo Aurelia'),
-      task(4, 'Revisar contrato de renovación', -2, high, 'Solaris Energía'),
-      task(5, 'Actualizar datos de contacto', -1, low, 'Kairos Retail'),
-      task(6, 'Agendar reunión trimestral', 3, mid, 'Orbita Fintech'),
-      task(7, 'Cotizar integración ERP', 2, mid, 'Altamar Foods'),
-      task(8, 'Responder consulta de soporte', 0, low, 'Brisa Hoteles'),
-      task(9, 'Enviar recordatorio de factura F-2041', -3, high, 'Lumen Salud'),
-      task(10, 'Documentar requisitos del portal', 5, low, 'Kairos Retail'),
-      task(
-        11,
-        'Cerrar acta de la reunión del lunes',
-        -1,
-        mid,
-        'Grupo Aurelia',
-        done: true,
-      ),
-      task(12, 'Compartir caso de éxito', -4, low, 'Zenit Motors', done: true),
-      task(
-        13,
-        'Validar acceso de usuarios nuevos',
-        0,
-        mid,
-        'Montalvo & Asoc.',
-        done: true,
-      ),
-    ];
+  /// Borra en la API una tarea quitada con [remove]. Si falla, la tarea
+  /// vuelve a la lista y se devuelve el mensaje de error.
+  Future<String?> commitRemoval(Task task) async {
+    if (!_pendingRemovals.contains(task.id)) return null;
+    try {
+      await _api.delete(task.id);
+      _pendingRemovals.remove(task.id);
+      return null;
+    } catch (error) {
+      restore(task);
+      return _message(error);
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  static int _compareDates(DateTime? a, DateTime? b) {
+    if (a == null && b == null) return 0;
+    if (a == null) return 1;
+    if (b == null) return -1;
+    return a.compareTo(b);
+  }
+
+  static String _message(Object error) {
+    if (error is CrmApiException) return error.message;
+    return 'No se pudo conectar con el servidor';
   }
 }

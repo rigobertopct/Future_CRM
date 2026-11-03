@@ -3,20 +3,21 @@ import 'package:future_crm/features/opportunities/opportunities_api.dart';
 import 'package:future_crm/features/opportunities/opportunity.dart';
 
 /// API de oportunidades en memoria. Con [failStageChanges] las peticiones
-/// de etapa fallan, para probar que la UI deshace el cambio.
+/// de etapa fallan, para probar que la UI deshace el cambio; con [failList]
+/// falla la lista global.
 class MemoryOpportunitiesApi implements OpportunitiesApi {
   MemoryOpportunitiesApi({
     List<OpportunityContact>? contacts,
     List<Opportunity>? seed,
     this.failStageChanges = false,
-    this.failingContacts = const {},
+    this.failList = false,
   }) : _contacts = List.of(contacts ?? sampleContacts),
        _items = List.of(seed ?? sampleOpportunities());
 
   final List<OpportunityContact> _contacts;
   final List<Opportunity> _items;
   final bool failStageChanges;
-  final Set<String> failingContacts;
+  final bool failList;
   final Map<String, List<PipelineEntry>> _history = {};
   bool failHistory = false;
   int _nextId = 100;
@@ -27,10 +28,13 @@ class MemoryOpportunitiesApi implements OpportunitiesApi {
   Future<List<OpportunityContact>> contacts() async => List.of(_contacts);
 
   @override
+  Future<List<Opportunity>> all() async {
+    if (failList) throw CrmApiException('Fallo de red');
+    return List.of(_items);
+  }
+
+  @override
   Future<List<Opportunity>> forContact(String contactId) async {
-    if (failingContacts.contains(contactId)) {
-      throw CrmApiException('Fallo de red');
-    }
     return _items.where((o) => o.contactId == contactId).toList();
   }
 

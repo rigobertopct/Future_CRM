@@ -9,6 +9,7 @@ import '../features/leads/leads_store.dart';
 import '../features/opportunities/opportunities_api.dart';
 import '../features/opportunities/opportunities_store.dart';
 import '../features/settings/settings_store.dart';
+import '../features/tasks/tasks_api.dart';
 import '../features/tasks/tasks_store.dart';
 
 enum CrmSection {
@@ -53,6 +54,7 @@ class CrmController extends ChangeNotifier {
   CrmController({
     LeadsApi? leadsApi,
     OpportunitiesApi? opportunitiesApi,
+    TasksApi? tasksApi,
     SessionStore? session,
     CrmSection section = CrmSection.dashboard,
     SettingsStore? settingsStore,
@@ -61,6 +63,7 @@ class CrmController extends ChangeNotifier {
          session ?? SessionStore(),
          leadsApi: leadsApi,
          opportunitiesApi: opportunitiesApi,
+         tasksApi: tasksApi,
          section: section,
          settingsStore: settingsStore,
          dashboardStore: dashboardStore,
@@ -71,6 +74,7 @@ class CrmController extends ChangeNotifier {
     this.session, {
     LeadsApi? leadsApi,
     OpportunitiesApi? opportunitiesApi,
+    TasksApi? tasksApi,
     required this.section,
     SettingsStore? settingsStore,
     DashboardStore? dashboardStore,
@@ -79,6 +83,9 @@ class CrmController extends ChangeNotifier {
        ),
        opportunities = OpportunitiesStore(
          api: opportunitiesApi ?? HttpOpportunitiesApi(client: session.client),
+       ),
+       tasks = TasksStore(
+         api: tasksApi ?? HttpTasksApi(client: session.client),
        ),
        settings = settingsStore ?? SettingsStore() {
     dashboard = dashboardStore ?? DashboardStore(settings: settings);
@@ -89,6 +96,7 @@ class CrmController extends ChangeNotifier {
   void start() {
     leads.refresh();
     opportunities.refresh();
+    tasks.refresh();
   }
 
   final LeadsStore leads;
@@ -97,7 +105,7 @@ class CrmController extends ChangeNotifier {
   late final DashboardStore dashboard;
   final OpportunitiesStore opportunities;
   final ClientsStore clients = ClientsStore();
-  final TasksStore tasks = TasksStore();
+  final TasksStore tasks;
   final InvoicesStore invoices = InvoicesStore();
   final ValueNotifier<ThemeMode> themeMode = ValueNotifier(ThemeMode.dark);
   CrmSection section;

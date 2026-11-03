@@ -10,6 +10,7 @@ import 'package:future_crm/features/settings/settings_store.dart';
 import 'package:future_crm/features/tasks/tasks_store.dart';
 
 import 'memory_opportunities_api.dart';
+import 'memory_tasks_api.dart';
 
 void main() {
   group('OpportunitiesStore', () {
@@ -19,7 +20,7 @@ void main() {
       return store;
     }
 
-    test('loads every contact\'s opportunities', () async {
+    test('loads every opportunity with the global list', () async {
       final store = await loaded();
       expect(store.loading, isFalse);
       expect(store.error, isNull);
@@ -27,13 +28,11 @@ void main() {
       expect(store.contacts.length, sampleContacts.length);
     });
 
-    test('a failing contact keeps the rest and reports it', () async {
-      final store = await loaded(
-        MemoryOpportunitiesApi(failingContacts: {'c-1'}),
-      );
-      expect(store.all.any((o) => o.contactId == 'c-1'), isFalse);
-      expect(store.all, isNotEmpty);
-      expect(store.error, 'Algunas oportunidades no se pudieron cargar');
+    test('a failing list shows the API message', () async {
+      final store = await loaded(MemoryOpportunitiesApi(failList: true));
+      expect(store.loading, isFalse);
+      expect(store.all, isEmpty);
+      expect(store.error, 'Fallo de red');
     });
 
     test('filters by stage and by search text', () async {
@@ -281,8 +280,15 @@ void main() {
   });
 
   group('TasksStore', () {
-    test('filters open, today, overdue and done tasks', () {
-      final store = TasksStore();
+    Future<(TasksStore, MemoryTasksApi)> loaded([MemoryTasksApi? api]) async {
+      final memory = api ?? MemoryTasksApi();
+      final store = TasksStore(api: memory);
+      await store.refresh();
+      return (store, memory);
+    }
+
+    test('filters open, today, overdue and done tasks', () async {
+      final (store, _) = await loaded();
 
       store.setFilter(TaskFilter.overdue);
       expect(store.visible, isNotEmpty);
@@ -295,49 +301,110 @@ void main() {
       expect(store.visible.every(store.isToday), isTrue);
     });
 
-    test('toggle moves a task between pending and completed', () {
-      final store = TasksStore();
+    test('a failing list shows the API message', () async {
+      final (store, _) = await loaded(MemoryTasksApi()..failList = true);
+      expect(store.loading, isFalse);
+      expect(store.all, isEmpty);
+      expect(store.error, 'Fallo de red');
+    });
+
+    test('toggle moves a task between pending and completed', () async {
+      final (store, _) = await loaded();
       final pending = store.countFor(TaskFilter.all);
       final done = store.countFor(TaskFilter.done);
       final id = store.visible.first.id;
 
-      store.toggle(id);
+      expect(await store.toggle(id), isNull);
 
       expect(store.countFor(TaskFilter.all), pending - 1);
       expect(store.countFor(TaskFilter.done), done + 1);
     });
 
-    test('remove returns the task so it can be restored', () {
-      final store = TasksStore();
-      final id = store.visible.first.id;
+    test('a rejected toggle is rolled back', () async {
+      final (store, api) = await loaded();
+      api.failUpdate = true;
       final pending = store.pendingCount;
 
-      final removed = store.remove(id);
-      expect(removed, isNotNull);
-      expect(store.pendingCount, pending - 1);
+      final error = await store.toggle(store.visible.first.id);
 
-      store.restore(removed!);
+      expect(error, 'No se pudo guardar la tarea');
       expect(store.pendingCount, pending);
-      store.restore(removed);
-      expect(store.pendingCount, pending, reason: 'restoring twice is a no-op');
     });
 
-    test('add creates an open task due on the requested day', () {
-      final store = TasksStore();
-      final created = store.add(
-        title: 'Nueva',
-        priority: TaskPriority.high,
-        dueInDays: 1,
-      );
-      expect(created.done, isFalse);
+    test('remove hides the task until the removal is committed', () async {
+      final (store, api) = await loaded();
+      final pending = store.pendingCount;
+      final removed = store.remove(store.visible.first.id)!;
+      expect(store.pendingCount, pending - 1);
+
+      await store.refresh();
+      expect(store.pendingCount, pending - 1, reason: 'reload keeps it hidden');
+
+      store.restore(removed);
+      expect(store.pendingCount, pending);
+      expect(api.deleted, isEmpty);
+
+      store.remove(removed.id);
+      expect(await store.commitRemoval(removed), isNull);
+      expect(api.deleted, [removed.id]);
+    });
+
+    test('a failed removal puts the task back', () async {
+      final (store, api) = await loaded();
+      api.failDelete = true;
+      final pending = store.pendingCount;
+      final removed = store.remove(store.visible.first.id)!;
+
       expect(
-        created.due
-            .difference(
-              DateTime(store.now.year, store.now.month, store.now.day),
-            )
-            .inDays,
-        1,
+        await store.commitRemoval(removed),
+        'No se pudo eliminar la tarea',
       );
+      expect(store.pendingCount, pending);
+    });
+
+    test('add sends the draft and reloads the list', () async {
+      final (store, api) = await loaded();
+      final pending = store.pendingCount;
+
+      final error = await store.add(
+        const TaskDraft(
+          title: 'Nueva',
+          type: TaskType.call,
+          priority: TaskPriority.high,
+        ),
+      );
+
+      expect(error, isNull);
+      expect(store.pendingCount, pending + 1);
+      expect(api.created.single.toDatos(), {
+        'nombre': 'Nueva',
+        'tipo': 'llamada',
+        'estado': 'pendiente',
+        'prioridad': 'alta',
+      });
+    });
+
+    test('parses API rows, including legacy values', () {
+      final task = Task.fromJson({
+        'id': 'pruebas-1',
+        'contacto': 'Elena',
+        'nombre': 'Enviar propuesta a Elena',
+        'tipo': 'correo',
+        'prioridad': 'media',
+        'estado': 'completada',
+        'fecha_cumplimiento': '2026-10-28 19:24:16',
+      });
+      expect(task.type, TaskType.email);
+      expect(task.status, TaskStatus.completed);
+      expect(task.done, isTrue);
+      expect(task.priority, TaskPriority.medium);
+      expect(task.contact, 'Elena');
+      expect(task.due, DateTime(2026, 10, 28, 19, 24, 16));
+
+      expect(TaskStatus.parse('no iniciada'), TaskStatus.pending);
+      expect(TaskStatus.parse('finalizada'), TaskStatus.completed);
+      expect(Task.fromJson({'fecha_cumplimiento': ''}).due, isNull);
+      expect(apiDateTime(DateTime(2026, 1, 2, 18)), '2026-01-02 18:00:00');
     });
   });
 
